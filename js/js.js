@@ -7,6 +7,8 @@ new Valine({
     appId: valine_appid,
     appKey: valine_appKey,
     placeholder: '请输入内容...',
+    recordIP: true,
+    visitor: true,
     avatar: "wavatar"
 })
 
