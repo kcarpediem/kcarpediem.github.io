@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>
+        kcarpediem
+    </title>
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 4.2.0"></head>
+
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-reply replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            Spring MVC上传大文件需要更改哪些配置
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <h2 id="大文件上传"><a href="#大文件上传" class="headerlink" title="大文件上传"></a>大文件上传</h2><hr>
+<h3 id="Spring配置文件"><a href="#Spring配置文件" class="headerlink" title="Spring配置文件"></a>Spring配置文件</h3><hr>
+<figure class="highlight plain"><figcaption><span>最大支持上传文件size</span></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">&#96;&#96;&#96;maxInMemorySize&#96;&#96;&#96; 低于此阈值则直接内存，高于此阈值则在磁盘生成临时文件</span><br><span class="line"></span><br><span class="line"> example:</span><br></pre></td></tr></table></figure>
+<p><bean id="multipartResolver"
+        class="org.springframework.web.multipart.commons.CommonsMultipartResolver"><br>        <property name="defaultEncoding" value="utf-8" /><br>        <property name="maxUploadSize" value="631242752" /><br>        <property name="maxInMemorySize" value="409600" /><br></bean></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">---</span><br><span class="line">### Nginx配置文件</span><br><span class="line">---</span><br></pre></td></tr></table></figure>
+<p>http {<br>    ···<br>    ···<br>    client_max_body_size 512m;<br>    ···<br>    ···<br>}</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">---</span><br><span class="line">### wildFly 配置文件</span><br><span class="line">---</span><br><span class="line">Undertow (web) subsystem configuration - WildFly 8 - Project Documentation Editor</span><br></pre></td></tr></table></figure>
+<subsystem xmlns="urn:jboss:domain:undertow:1.2">
+    ···
+    ···
+    <server name="default-server">
+        ···
+        ···
+        <http-listener name="default" socket-binding="http" max-post-size="631242752"/>
+        ···
+        ···
+    </server>
+    ···
+    ···
+</subsystem>
+```
+    </div>
+
+    
+        <hr class="fhr">
+        <div id="vcomments"></div>
+    
+</div>
+    <div class="footer" id="footer">
+    <p>Copyright © 2020 <a class="flink" href="https://hexo.io" target="_blank" rel="noopener">Hexo</a>-<a class="flink" href="https://github.com/sanjinhub/hexo-theme-geek" target="_blank" rel="noopener">Geek</a>.
+        <label class="el-switch el-switch-green el-switch-sm" style="vertical-align: sub;">
+            <input type="checkbox" name="switch" id="update_style">
+            <span class="el-switch-style"></span>
+        </label>
+<!--         <script type="text/javascript">
+        var cnzz_protocol = (("https:" == document.location.protocol) ? "https://" : "http://");
+        document.write(unescape("%3Cspan id='cnzz_stat_icon_1278548644'%3E%3C/span%3E%3Cscript src='" + cnzz_protocol + "v1.cnzz.com/stat.php%3Fid%3D1278548644%26show%3Dpic1' type='text/javascript'%3E%3C/script%3E"));
+        </script> -->
+    </p>
+</div>
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="scUbmN4Ft52ntSRndxTqzbio-MdYXbMMI">
+<input type="hidden" id="valine_appKey" value="Sr0YFe6y6Fg9ufk3YBkM7Pc6">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+    color: #698fca;
+}
+
+.v .vlist .vcard .vhead .vsys {
+    color: #3a3e4a;
+}
+
+.v .vlist .vcard .vh .vmeta .vat {
+    color: #638fd5;
+}
+
+.v .vlist .vcard .vhead .vnick {
+    color: #6ba1ff;
+}
+
+.v a {
+    color: #8696b1;
+}
+
+.v .vlist .vcard .vhead .vnick:hover {
+    color: #669bfc;
+}
+</style>
+</body>
+
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>
+        kcarpediem
+    </title>
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 4.2.0"></head>
+
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-reply replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            Apache FTPClient 使用过程中遇到的坑
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <h2 id="Apache-FTPClient"><a href="#Apache-FTPClient" class="headerlink" title="Apache FTPClient"></a>Apache FTPClient</h2><h4 id="远端大文件复制带来的程序假死问题"><a href="#远端大文件复制带来的程序假死问题" class="headerlink" title="远端大文件复制带来的程序假死问题"></a>远端大文件复制带来的程序假死问题</h4><hr>
+<h3 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h3><p>在进入云平台开发组一段时间后，开始撸代码了。接的第一个需求并不复杂：对自定义的ECS裸机进行配置。所谓的自定义ECS，顾名思义，用户可以自己定制该服务，并不局限于平台提供的标准服务。那么一个关键的配置项就是软件包和安装脚本。</p>
+<p>项目接入了公司自有OSS管理平台用来管理用户自上传的脚本和软件包。OSS平台同时支持FTP配置。由于工期较紧（手动狗头），leader选择用ftp方式进行文件管理。于是引出了今天遇到的问题。</p>
+<hr>
+<h3 id="问题-amp-解决"><a href="#问题-amp-解决" class="headerlink" title="问题 &amp; 解决"></a>问题 &amp; 解决</h3><p>FTP客户端选用的是  <code>org.apache.commons.net.ftp.FTPClient</code><br>项目内搜索，有现成的工具类和方法 <code>FTPHelper.java</code>，其中我需要的上传、删除，复制都封装好了，于是心中窃喜，只要调用一下不就OK了吗。</p>
+<p>上传，删除功能都进行的很顺利，但是复制功能始终不OK。开始debug。</p>
+<p>先看代码</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">public void copyFileToDirectory(String originalFilePathAndName, String destDir) throws UnsupportedEncodingException &#123;</span><br><span class="line">    InputStream in &#x3D; this.getInputStreamFromFTP(new String(originalFilePathAndName.getBytes(&quot;utf-8&quot;), ISO_8859_1));</span><br><span class="line">    String filePathAndName &#x3D; destDir + &quot;&#x2F;&quot;</span><br><span class="line">            + originalFilePathAndName.substring(originalFilePathAndName.lastIndexOf(&#39;&#x2F;&#39;) + 1);</span><br><span class="line">    this.writeInputStreamToFTP(new String(filePathAndName.getBytes(&quot;utf-8&quot;), ISO_8859_1), in);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>先根据FTP Server远程路径+文件名获取文件的输入流，再把该流写入目标路径。看起来没啥毛病。但是文件没有复制成功。debug Step Into, 发现了一处诡异的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">public InputStream getInputStreamFromFTP(String pathAndName) &#123;</span><br><span class="line">        LOG.info(&quot;正在通过文件名称获取远程文件流，pathAndName&#x3D;&quot; + pathAndName + &quot; ......&quot;);</span><br><span class="line"></span><br><span class="line">        Validate.notNull(pathAndName, &quot;ftp上的文件所在所在路径和名称&quot;);</span><br><span class="line"></span><br><span class="line">        String fileName &#x3D; pathAndName.substring(pathAndName.lastIndexOf(&#39;&#x2F;&#39;) + 1);</span><br><span class="line">        String path &#x3D; pathAndName.substring(0, pathAndName.lastIndexOf(&#39;&#x2F;&#39;) + 1);</span><br><span class="line"></span><br><span class="line">        InputStream is &#x3D; null;</span><br><span class="line">        try &#123;</span><br><span class="line">            changeDirectory(path);</span><br><span class="line"></span><br><span class="line">            is &#x3D; ftpClient.retrieveFileStream(new String(fileName.getBytes(&quot;utf-8&quot;), ISO_8859_1));</span><br><span class="line"></span><br><span class="line">            if (null &#x3D;&#x3D; is) &#123;</span><br><span class="line">                throw new FileNotFoundException(fileName);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">        &#125; catch (Exception e) &#123;</span><br><span class="line">            LOG.error(&quot;ftp通过文件名称获取远程文件流&quot;, e);</span><br><span class="line">        &#125; finally &#123;</span><br><span class="line">            try &#123;</span><br><span class="line">                if (null !&#x3D; is) &#123;</span><br><span class="line">                    is.close();</span><br><span class="line">                    ftpClient.completePendingCommand();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; catch (IOException e) &#123;</span><br><span class="line">                LOG.error(e.getMessage(), e);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        return is;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意finally代码块中令人瞩目的</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">大哥，我的流还没读取你就给我关闭了，玩呢。</span><br><span class="line"></span><br><span class="line">坑找到了，删除了这行代码，文件复制成功。</span><br><span class="line"></span><br><span class="line">然鹅事情没这么简单，测试过程中，在复制大文件时，出现了问题。</span><br><span class="line"></span><br><span class="line">程序在此处假死</span><br></pre></td></tr></table></figure>
+<p> String line = <em>controlInput</em>.readLine();<br> <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">继续定位问题，场景是很误导人的，较小的文件复制成功，较大的程序包复制失败。让我自然而然往性能瓶颈的方向考虑。文件较大超时了吗？文件单行读取过长？BufferSize需要增大吗？。。。</span><br><span class="line"></span><br><span class="line">无效尝试 times N</span><br><span class="line"></span><br><span class="line">Two thousands years later...</span><br><span class="line"></span><br><span class="line">我突然想到那个诡异的流关闭操作。会不会跟它有关呢？试着搜索一下，果然问题出在这里：</span><br><span class="line"></span><br><span class="line">再看一遍finally代码块：</span><br></pre></td></tr></table></figure><br>finally {<br>    try {<br>        if (null != is) {<br>            is.close();<br>            ftpClient.completePendingCommand();<br>        }<br>    } catch (IOException e) {<br>        LOG.error(e.getMessage(), e);<br>    }<br>}</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">**&#96;&#96;&#96;ftpClient.completePendingCommand();&#96;&#96;&#96;**</span><br></pre></td></tr></table></figure>
+<pre><code>/**
+* There are a few FTPClient methods that do not complete the
+* entire sequence of FTP commands to complete a transaction.  These
+* commands require some action by the programmer after the reception
+* of a positive intermediate command.  After the programmer&apos;s code
+* completes its actions, it must call this method to receive
+* the completion reply from the server and verify the success of the
+* entire transaction.
+*/
+public boolean completePendingCommand() throws IOException
+{
+    return FTPReply.isPositiveCompletion(getReply());
+}</code></pre> <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">我们发现，这是一个同步阻塞方法，在上传&#x2F;下载过程中，如果获取了流，需要手动关闭该Stream， 并调用completePendingCommand()方法。如果少调用或多调用，都会导致程序阻塞假死。FTPClient无法再进行任何其他操作。在本例中，是工作路径的切换被阻塞，导致其他操作皆无反应。</span><br><span class="line"></span><br><span class="line">好了，我冤枉之前的大哥了，乖乖把删除的关闭流代码加回来。但是这样又无法读取流了。</span><br><span class="line"></span><br><span class="line">。。。。。。</span><br><span class="line"></span><br><span class="line">分析到这里，解决方案呼之欲出了。前面的大哥，你的锅还是要背。流是要关闭的，但是关闭的时序错了。如果不关闭流，FTPClient阻塞程序假死，如果关闭流，文件就读不到了，这里的</span><br><span class="line">* 方案一：深度拷贝流（不推荐）</span><br><span class="line"></span><br><span class="line">   * 修改getInputStreamFromFTP, 暂时不关闭流，暂时不调用completePendingCommand()方法；</span><br></pre></td></tr></table></figure>
+<pre><code>    public InputStream getInputStreamFromFTP(String pathAndName) {
+        LOG.info(&quot;正在通过文件名称获取远程文件流，pathAndName=&quot; + pathAndName + &quot; ......&quot;);
+
+        Validate.notNull(pathAndName, &quot;ftp上的文件所在所在路径和名称&quot;);
+
+        String fileName = pathAndName.substring(pathAndName.lastIndexOf(&apos;/&apos;) + 1);
+        String path = pathAndName.substring(0, pathAndName.lastIndexOf(&apos;/&apos;) + 1);
+
+        InputStream is = null;
+        try {
+            changeDirectory(path);
+
+            is = ftpClient.retrieveFileStream(new String(fileName.getBytes(&quot;utf-8&quot;), ISO_8859_1));// 获取远程ftp上指定文件的InputStream
+
+            if (null == is) {
+                throw new FileNotFoundException(fileName);
+            }
+
+        } catch (Exception e) {
+            LOG.error(&quot;ftp通过文件名称获取远程文件流&quot;, e);
+        }
+        return is;
+    }
+    <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">* 拷贝流方法</span><br></pre></td></tr></table></figure>
+    private ByteArrayOutputStream cloneInputStream(InputStream input) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = input.read(buffer)) &gt; -1) {
+                baos.write(buffer, 0, len);
+            }
+            baos.flush();
+            return baos;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+    <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">* 主流程中获取流返回后，先深拷贝，再关闭流，再call completePendingCommand(), 再进行其他FTPClient操作</span><br></pre></td></tr></table></figure>
+    public boolean copyFileToDir(String originalFilePathAndName, String destDir) throws IOException {
+        InputStream is;
+        String filePathAndName;
+        boolean result = false;
+        try {
+            is = this.getInputStreamFromFTP(new String(originalFilePathAndName.getBytes(&quot;utf-8&quot;), ISO_8859_1));
+            filePathAndName = destDir + &quot;/&quot;
+                    + originalFilePathAndName.substring(originalFilePathAndName.lastIndexOf(&apos;/&apos;) + 1);
+            ByteArrayOutputStream baos = cloneInputStream(is);
+            try {
+                if (null != is) {
+                    is.close();
+                    ftpClient.completePendingCommand();
+                }
+            } catch (IOException e) {
+                LOG.error(e.getMessage(), e);
+            }
+            if (null != baos) {
+                InputStream input = new ByteArrayInputStream(baos.toByteArray());
+                result = this.writeInputStreamToFTP(new String(filePathAndName.getBytes(&quot;utf-8&quot;), ISO_8859_1), input);
+                input.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return result;
+    }
+    <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">* 方案二 使用rename方法（推荐）</span><br></pre></td></tr></table></figure>
+/**
+ * Renames a remote file.
+ * &lt;p&gt;
+ * @param from  The name of the remote file to rename.
+ * @param to    The new name of the remote file.
+ * @return True if successfully completed, false if not.
+ * @exception FTPConnectionClosedException
+ *      If the FTP server prematurely closes the connection as a result
+ *      of the client being idle or some other reason causing the server
+ *      to send FTP reply code 421.  This exception may be caught either
+ *      as an IOException or independently as itself.
+ * @exception IOException  If an I/O error occurs while either sending a
+ *      command to the server or receiving a reply from the server.
+ */
+public boolean rename(String from, String to) throws IOException
+{
+    if (!FTPReply.isPositiveIntermediate(rnfr(from))) {
+        return false;
+    }
+
+    return FTPReply.isPositiveCompletion(rnto(to));
+}
+```
+该方法减少了不必要的数据传输，效率明显更优。</code></pre><hr>
+<h2 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h2><p>这次遇到的不是什么太高深的问题，解决的过程却一波三折，花费了不少时间。</p>
+<p>感悟就是不要轻易相信轮子，阅读源码是真的有必要。</p>
+
+    </div>
+
+    
+        <hr class="fhr">
+        <div id="vcomments"></div>
+    
+</div>
+    <div class="footer" id="footer">
+    <p>Copyright © 2020 <a class="flink" href="https://hexo.io" target="_blank" rel="noopener">Hexo</a>-<a class="flink" href="https://github.com/sanjinhub/hexo-theme-geek" target="_blank" rel="noopener">Geek</a>.
+        <label class="el-switch el-switch-green el-switch-sm" style="vertical-align: sub;">
+            <input type="checkbox" name="switch" id="update_style">
+            <span class="el-switch-style"></span>
+        </label>
+<!--         <script type="text/javascript">
+        var cnzz_protocol = (("https:" == document.location.protocol) ? "https://" : "http://");
+        document.write(unescape("%3Cspan id='cnzz_stat_icon_1278548644'%3E%3C/span%3E%3Cscript src='" + cnzz_protocol + "v1.cnzz.com/stat.php%3Fid%3D1278548644%26show%3Dpic1' type='text/javascript'%3E%3C/script%3E"));
+        </script> -->
+    </p>
+</div>
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="scUbmN4Ft52ntSRndxTqzbio-MdYXbMMI">
+<input type="hidden" id="valine_appKey" value="Sr0YFe6y6Fg9ufk3YBkM7Pc6">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+    color: #698fca;
+}
+
+.v .vlist .vcard .vhead .vsys {
+    color: #3a3e4a;
+}
+
+.v .vlist .vcard .vh .vmeta .vat {
+    color: #638fd5;
+}
+
+.v .vlist .vcard .vhead .vnick {
+    color: #6ba1ff;
+}
+
+.v a {
+    color: #8696b1;
+}
+
+.v .vlist .vcard .vhead .vnick:hover {
+    color: #669bfc;
+}
+</style>
+</body>
+
+</html>
